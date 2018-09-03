@@ -4,17 +4,17 @@ import com.customatics.leaptest_plugin.model.Case;
 import com.customatics.leaptest_plugin.model.InvalidSchedule;
 import com.customatics.leaptest_plugin.model.Schedule;
 import com.customatics.leaptest_plugin.model.ScheduleCollection;
-import hudson.EnvVars;
-import hudson.Extension;
-import hudson.FilePath;
-import hudson.Launcher;
+
+import hudson.*;
 import hudson.model.*;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.Builder;
+import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONObject;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
 
@@ -24,27 +24,26 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.ListIterator;
 
-
 public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuildStep {
 
 
-    private final String address;
-    private final String delay;
-    private final String doneStatusAs;
-    private final String report;
-    private final String schIds;
-    private final String schNames;
+    private String address;
+    private String delay;
+    private String doneStatusAs;
+    private String report;
+    private String schIds;
+    private String schNames;
 
     private static PluginHandler pluginHandler = PluginHandler.getInstance();
 
     // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
-    public LeaptestJenkinsBridgeBuilder( String address, String delay, String doneStatusAs, String report, String schNames, String schIds )
+    public LeaptestJenkinsBridgeBuilder( String address, String report, String schNames, String schIds )
     {
 
         this.address = address;
-        this.delay = delay;
-        this.doneStatusAs = doneStatusAs;
+        this.delay = DescriptorImpl.DEFAULT_DELAY;
+        this.doneStatusAs = "Success";
         this.report = report;
         this.schIds = schIds;
         this.schNames = schNames;
@@ -57,6 +56,12 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
     public String getSchIds()       { return schIds;}
     public String getDoneStatusAs() { return doneStatusAs;}
     public String getReport()       { return  report;}
+
+    @DataBoundSetter
+    public void setDelay(String delay) { this.delay = delay; }
+
+    @DataBoundSetter
+    public void setDoneStatusAs(String doneStatusAs) {  this.doneStatusAs = doneStatusAs;}
 
     //@Override
     public void perform(final Run<?,?> build, FilePath workspace, Launcher launcher, final TaskListener listener) throws IOException, InterruptedException {
@@ -76,7 +81,7 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
 
         rawScheduleList = pluginHandler.getRawScheduleList(getSchIds(),getSchNames());
 
-        int timeDelay = pluginHandler.getTimeDelay(getDelay());
+        int timeDelay = Integer.parseInt(getDelay());
 
         try
         {    //Get schedule titles (or/and ids in case of pipeline)
@@ -169,25 +174,28 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
 
             pluginHandler.createJUnitReport(junitReportPath,listener,buildResult);
 
-            if (buildResult.getErrors() > 0 || buildResult.getFailedTests() > 0 || invalidSchedules.size() > 0) {
-                listener.getLogger().println("FAILURE");
+            if (buildResult.getErrors() > 0 || invalidSchedules.size() > 0) {
+                listener.getLogger().println("There were detected 'ERRORS' or 'INVALID SCHEDULES' hence set the build status='FAILURE'");
                 build.setResult(Result.FAILURE);
+            } else if ( buildResult.getFailedTests() > 0 ) {
+                if ( "Success".equals(this.doneStatusAs) ){
+                    listener.getLogger().println("There were test cases that had failures/issues, but the plugin has been configured to return: 'Success' in this case");
+                    build.setResult(Result.SUCCESS);
+                } else if ( "Unstable".equals(this.doneStatusAs) ) {
+                    listener.getLogger().println("There were test cases that had failures/issues, but the plugin has been configured to return: 'Unstable' in this case");
+                    build.setResult(Result.UNSTABLE);
+                }
+            } else {
+                listener.getLogger().println("No issues detected");
             }
-            else {
-                listener.getLogger().println("SUCCESS");
-                build.setResult(Result.SUCCESS);
-            }
-
             listener.getLogger().println(Messages.PLUGIN_SUCCESSFUL_FINISH);
         }
 
         catch (InterruptedException e)
         {
             String interruptedExceptionMessage = String.format(Messages.INTERRUPTED_EXCEPTION, e.getMessage());
-            listener.error(interruptedExceptionMessage);
             pluginHandler.stopSchedule(getAddress(),schId,schTitle, listener);
-            listener.error("ABORTED");
-            build.setResult(Result.ABORTED);
+            throw new AbortException(interruptedExceptionMessage);
         }
         catch (Exception e)
         {
@@ -213,18 +221,38 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
     @Extension // This indicates to Jenkins that this is an implementation of an extension point.
     public static final class DescriptorImpl extends BuildStepDescriptor<Builder> {
 
+        public static final String DEFAULT_DELAY = "3";
         public DescriptorImpl() { load();}
 
-        public ListBoxModel doFillSelectionStatus(@QueryParameter String status) {
-            return new ListBoxModel(new ListBoxModel.Option("Success", "Success", status.matches("Success") ),
-                    new ListBoxModel.Option("Success", "Success", status.matches("Success") ),
-                    new ListBoxModel.Option("Failed", "Failed", status.matches("Failed") ));
+        public ListBoxModel doFillDoneStatusAsItems() {
+            return new ListBoxModel(
+                    new ListBoxModel.Option("Success", "Success" ),
+                    new ListBoxModel.Option("Unstable", "Unstable" ),
+                    new ListBoxModel.Option("Failed", "Failed" )
+            );
         }
 
         public boolean isApplicable(Class<? extends AbstractProject> aClass) {
             // Indicates that this builder can be used with all kinds of project types 
             return true;
         }
+
+        public FormValidation doCheckDelay (@QueryParameter String delay){
+            int temp;
+            try {
+                temp = Integer.parseInt(delay);
+                if ( temp < 1 ){
+                    return FormValidation.error("Entered number must be higher than 0");
+                }
+
+            } catch (NumberFormatException ex){
+                return FormValidation.error("Invalid number");
+            }
+            return FormValidation.ok();
+
+        }
+
+        public String getDefaultDelay() { return DEFAULT_DELAY; }
 
         public String getDisplayName() {
             return Messages.PLUGIN_NAME;

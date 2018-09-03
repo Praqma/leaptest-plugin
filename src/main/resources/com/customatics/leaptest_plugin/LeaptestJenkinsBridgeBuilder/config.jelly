@@ -29,7 +29,7 @@
     </f:entry>
 
     <f:entry title="Schedule Names" field="schNames" >
-        <f:textarea id="schNames" name="schNames" readonly="true"/>
+        <f:textarea id="schNames" name="schNames" readonly="false"/>
     </f:entry>
      <f:entry>
          <span class="yui-button">
@@ -42,14 +42,11 @@
       </div>
    </f:entry>
     <f:advanced>
-        <f:entry title="Delay (seconds):" field="delay">
-            <f:textbox name="delay" />
+        <f:entry title="Delay (seconds):" field="delay" >
+            <f:textbox name="delay" default="${descriptor.DEFAULT_DELAY}"/>
         </f:entry>
-        <f:entry title="Done Status:"  field="doneStatusAs" >
-            <select name="doneStatusAs">
-                <option value="Failed">Failed</option>
-                <option value="Success">Success</option>
-            </select>
+        <f:entry title="Set status if test cases fail:">
+        <f:select field="doneStatusAs"/>
         </f:entry>
     </f:advanced>
 
@@ -130,7 +127,7 @@ this.executed = true;
     head.appendChild(style);
 
     var schtextarea = document.getElementById("schIds");
-    schtextarea.style.display = 'none';
+    //schtextarea.style.display = 'none';
 };
 </script>
 

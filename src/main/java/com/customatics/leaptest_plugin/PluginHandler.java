@@ -65,16 +65,6 @@ public final class PluginHandler {
         return rawScheduleList;
     }
 
-    public int getTimeDelay(String rawTimeDelay)
-    {
-        int defaultTimeDelay = 3;
-        if(!rawTimeDelay.isEmpty() || !"".equals(rawTimeDelay))
-            return Integer.parseInt(rawTimeDelay);
-        else
-            return defaultTimeDelay;
-    }
-
-
     public HashMap<String, String> getSchedulesIdTitleHashMap(
             String leaptestAddress,
             ArrayList<String> rawScheduleList,
