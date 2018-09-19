@@ -36,15 +36,20 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
 
     private static PluginHandler pluginHandler = PluginHandler.getInstance();
 
+    /**
+     * @param address
+     * @param schNames
+     * @param schIds
+     */
     // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
-    public LeaptestJenkinsBridgeBuilder( String address, String report, String schNames, String schIds )
+    public LeaptestJenkinsBridgeBuilder( String address, String schNames, String schIds )
     {
 
         this.address = address;
         this.delay = DescriptorImpl.DEFAULT_DELAY;
         this.doneStatusAs = "Success";
-        this.report = report;
+        this.report = DescriptorImpl.DEFAULT_REPORTNAME;
         this.schIds = schIds;
         this.schNames = schNames;
     }
@@ -55,7 +60,10 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
     public String getSchNames()     { return schNames;}
     public String getSchIds()       { return schIds;}
     public String getDoneStatusAs() { return doneStatusAs;}
-    public String getReport()       { return  report;}
+    public String getReport()       { return report;}
+
+    @DataBoundSetter
+    public void setReport(String report) { this.report = report; }
 
     @DataBoundSetter
     public void setDelay(String delay) { this.delay = delay; }
@@ -63,18 +71,23 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
     @DataBoundSetter
     public void setDoneStatusAs(String doneStatusAs) {  this.doneStatusAs = doneStatusAs;}
 
+    /**
+     * @param run
+     * @param workspace
+     * @param launcher
+     * @param listener
+     * @throws IOException
+     * @throws InterruptedException
+     */
     //@Override
-    public void perform(final Run<?,?> build, FilePath workspace, Launcher launcher, final TaskListener listener) throws IOException, InterruptedException {
+    public void perform(final Run<?,?> run, FilePath workspace, Launcher launcher, final TaskListener listener) throws IOException, InterruptedException {
 
-        EnvVars env = build.getEnvironment(listener);
         HashMap<String, String> schedulesIdTitleHashMap = null; // Id-Title
         ArrayList<InvalidSchedule> invalidSchedules = new ArrayList<>();
         ScheduleCollection buildResult = new ScheduleCollection();
         ArrayList<String> rawScheduleList = null;
 
-        String junitReportPath = pluginHandler.getJunitReportFilePath(env.get(Messages.JENKINS_WORKSPACE_VARIABLE), getReport());
-        listener.getLogger().println(junitReportPath);
-        env = null;
+        listener.getLogger().println(getReport());
 
         String schId = null;
         String schTitle = null;
@@ -172,18 +185,18 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
             }
             buildResult.setTotalTests(buildResult.getFailedTests() + buildResult.getPassedTests());
 
-            pluginHandler.createJUnitReport(junitReportPath,listener,buildResult);
+            pluginHandler.createJUnitReport(run,workspace,getReport(),listener,buildResult);
 
             if (buildResult.getErrors() > 0 || invalidSchedules.size() > 0) {
                 listener.getLogger().println("There were detected 'ERRORS' or 'INVALID SCHEDULES' hence set the build status='FAILURE'");
-                build.setResult(Result.FAILURE);
+                run.setResult(Result.FAILURE);
             } else if ( buildResult.getFailedTests() > 0 ) {
                 if ( "Success".equals(this.doneStatusAs) ){
                     listener.getLogger().println("There were test cases that had failures/issues, but the plugin has been configured to return: 'Success' in this case");
-                    build.setResult(Result.SUCCESS);
+                    run.setResult(Result.SUCCESS);
                 } else if ( "Unstable".equals(this.doneStatusAs) ) {
                     listener.getLogger().println("There were test cases that had failures/issues, but the plugin has been configured to return: 'Unstable' in this case");
-                    build.setResult(Result.UNSTABLE);
+                    run.setResult(Result.UNSTABLE);
                 }
             } else {
                 listener.getLogger().println("No issues detected");
@@ -203,7 +216,7 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
             listener.error(e.getMessage());
             listener.error(Messages.PLEASE_CONTACT_SUPPORT);
             listener.error("FAILURE");
-            build.setResult(Result.FAILURE);
+            run.setResult(Result.FAILURE);
         }
 
 
@@ -222,6 +235,7 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
     public static final class DescriptorImpl extends BuildStepDescriptor<Builder> {
 
         public static final String DEFAULT_DELAY = "3";
+        public static final String DEFAULT_REPORTNAME = "report.xml";
         public DescriptorImpl() { load();}
 
         public ListBoxModel doFillDoneStatusAsItems() {
@@ -253,6 +267,8 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
         }
 
         public String getDefaultDelay() { return DEFAULT_DELAY; }
+
+        public String getDefaultReportname() { return DEFAULT_REPORTNAME; }
 
         public String getDisplayName() {
             return Messages.PLUGIN_NAME;

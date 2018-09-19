@@ -22,7 +22,7 @@
   </f:entry>
 
     <f:entry title="Report file name:" field="report">
-        <f:textbox name="report" value="report.xml"/>
+        <f:textbox name="report" default="${descriptor.DEFAULT_REPORTNAME}"/>
     </f:entry>
     <f:entry  field="schIds" >
         <f:textarea  id = "schIds"  name="schIds" readonly="true" />

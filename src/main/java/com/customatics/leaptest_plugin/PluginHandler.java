@@ -10,7 +10,10 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.ning.http.client.AsyncHttpClient;
 import com.ning.http.client.Response;
+import hudson.FilePath;
+import hudson.model.Run;
 import hudson.model.TaskListener;
+import hudson.remoting.VirtualChannel;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
@@ -19,11 +22,13 @@ import java.io.*;
 import java.net.ConnectException;
 import java.net.NoRouteToHostException;
 import java.net.UnknownHostException;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.concurrent.ExecutionException;
 
+import static java.nio.charset.StandardCharsets.*;
 
 public final class PluginHandler {
 
@@ -38,6 +43,7 @@ public final class PluginHandler {
         return pluginHandler;
     }
 
+    /**
     public String getJunitReportFilePath(String jenkinsWorkspacePath, String reportFileName)
     {
         if(reportFileName.isEmpty() || "".equals(reportFileName))
@@ -51,6 +57,7 @@ public final class PluginHandler {
         }
         return String.format("%1$s/%2$s",jenkinsWorkspacePath,reportFileName);
     }
+     */
 
     public ArrayList<String> getRawScheduleList(String rawScheduleIds, String rawScheduleTitles)
     {
@@ -552,11 +559,17 @@ public final class PluginHandler {
         return isScheduleStillRunning;
     }
 
-    public void createJUnitReport(String JUnitReportFilePath, final TaskListener listener, ScheduleCollection buildResult) throws Exception {
+    public void createJUnitReport(Run<?,?> run, FilePath workspace, String JUnitReportFile, final TaskListener listener, ScheduleCollection buildResult) throws Exception {
         try
         {
-            File reportFile = new File(JUnitReportFilePath);
-            if(!reportFile.exists()) reportFile.createNewFile();
+            FilePath reportFile;
+//            if(workspace.isRemote())
+//            {
+                VirtualChannel channel = workspace.getChannel();
+                reportFile = new FilePath(channel, workspace.toURI().getPath() + "/" + JUnitReportFile);
+//            } else {
+//                reportFile = new FilePath(new File(workspace.toURI().getPath() + "/" + JUnitReportFile));
+//            }
 
             StringWriter writer = new StringWriter();
             JAXBContext context = JAXBContext.newInstance(ScheduleCollection.class);
@@ -570,11 +583,7 @@ public final class PluginHandler {
 
             writer = null;
 
-            try (PrintStream out = new PrintStream(new FileOutputStream(reportFile.getAbsolutePath()))) {
-                out.print(formattedWriter);
-                out.close();
-            }
-
+            reportFile.write(formattedWriter.toString(),"UTF-8");
         }
         catch (FileNotFoundException e) {
             listener.error(Messages.REPORT_FILE_NOT_FOUND);
