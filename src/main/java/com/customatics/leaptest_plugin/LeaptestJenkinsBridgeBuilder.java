@@ -9,10 +9,12 @@ import hudson.*;
 import hudson.model.*;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.Builder;
+import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONObject;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
 
@@ -24,17 +26,27 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuildStep {
 
-    private final String leapworkHostname;
-    private final String leapworkPort;
-    private final String leapworkAccessKey;
-    private final String leapworkDelay;
-    private final String leapworkDoneStatusAs;
-    private final String leapworkReport;
-    private final String leapworkSchIds;
-    private final String leapworkSchNames;
+    private String leapworkHostname;
+    private String leapworkPort;
+    private String leapworkAccessKey;
+    private String leapworkDelay;
+    private String leapworkDoneStatusAs;
+    private String leapworkReport;
+    private String leapworkSchIds;
+    private String leapworkSchNames;
 
     private static PluginHandler pluginHandler = PluginHandler.getInstance();
 
+    /**
+     * @param leapworkHostname
+     * @param leapworkPort
+     * @param leapworkAccessKey
+     * @param leapworkDelay
+     * @param leapworkDoneStatusAs
+     * @param leapworkReport
+     * @param leapworkSchNames
+     * @param leapworkSchIds
+     */
     // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
     public LeaptestJenkinsBridgeBuilder(String leapworkHostname,String leapworkPort, String leapworkAccessKey, String leapworkDelay, String leapworkDoneStatusAs, String leapworkReport, String leapworkSchNames, String leapworkSchIds )
@@ -43,9 +55,9 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
         this.leapworkHostname = leapworkHostname;
         this.leapworkPort = leapworkPort;
         this.leapworkAccessKey = leapworkAccessKey;
-        this.leapworkDelay = leapworkDelay;
-        this.leapworkDoneStatusAs = leapworkDoneStatusAs;
-        this.leapworkReport = leapworkReport;
+        this.leapworkDelay = DescriptorImpl.DEFAULT_DELAY;
+        this.leapworkDoneStatusAs = "Success";
+        this.leapworkReport = DescriptorImpl.DEFAULT_REPORTNAME;
         this.leapworkSchIds = leapworkSchIds;
         this.leapworkSchNames = leapworkSchNames;
     }
@@ -59,23 +71,37 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
     public String getLeapworkDoneStatusAs() { return leapworkDoneStatusAs;}
     public String getLeapworkReport()       { return leapworkReport;}
 
-    //@Override
-    public void perform(final Run<?,?> build, FilePath workspace, Launcher launcher, final TaskListener listener) throws IOException, InterruptedException {
+    @DataBoundSetter
+    public void setLeapworkReport(String leapworkReport) { this.leapworkReport = leapworkReport; }
 
-        EnvVars env = build.getEnvironment(listener);
+    @DataBoundSetter
+    public void setLeapworkDelay(String leapworkDelay) { this.leapworkDelay = leapworkDelay; }
+
+    @DataBoundSetter
+    public void setLeapworkDoneStatusAs(String leapworkDoneStatusAs) {  this.leapworkDoneStatusAs = leapworkDoneStatusAs;}
+
+    /**
+     * @param run
+     * @param workspace
+     * @param launcher
+     * @param listener
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    //@Override
+    public void perform(final Run<?,?> run, FilePath workspace, Launcher launcher, final TaskListener listener) throws IOException, InterruptedException {
+
         HashMap<UUID, String> schedulesIdTitleHashMap = null; // Id-Title
         ArrayList<InvalidSchedule> invalidSchedules = new ArrayList<>();
         ArrayList<String> rawScheduleList = null;
 
-        String junitReportPath = pluginHandler.getJunitReportFilePath(env.get(Messages.JENKINS_WORKSPACE_VARIABLE), leapworkReport);
-        listener.getLogger().println(junitReportPath);
-        env = null;
+        listener.getLogger().println(getLeapworkReport());
 
 
         rawScheduleList = pluginHandler.getRawScheduleList(leapworkSchIds, leapworkSchNames);
         String controllerApiHttpAddress = pluginHandler.getControllerApiHttpAdderess(leapworkHostname, leapworkPort, listener);
 
-        int timeDelay = pluginHandler.getTimeDelay(leapworkDelay, listener);
+        int timeDelay = Integer.parseInt(getLeapworkDelay());
 
         try( AsyncHttpClient mainClient = new AsyncHttpClient())
         {
@@ -98,16 +124,16 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
 
                 UUID schId = iter.next();
                 String schTitle = schedulesIdTitleHashMap.get(schId);
-                LeapworkRun run  = new LeapworkRun(schTitle);
+                LeapworkRun leapWorkRun  = new LeapworkRun(schTitle);
 
-                UUID runId = pluginHandler.runSchedule(mainClient,controllerApiHttpAddress, leapworkAccessKey, schId, schTitle, listener,  run);
+                UUID runId = pluginHandler.runSchedule(mainClient,controllerApiHttpAddress, leapworkAccessKey, schId, schTitle, listener,  leapWorkRun);
                 if(runId != null)
                 {
-                    resultsMap.put(runId,run);
-                    CollectScheduleRunResults(controllerApiHttpAddress, leapworkAccessKey,runId,schTitle,timeDelay,leapworkDoneStatusAs,run, listener);
+                    resultsMap.put(runId,leapWorkRun);
+                    CollectScheduleRunResults(controllerApiHttpAddress, leapworkAccessKey,runId,schTitle,timeDelay,leapworkDoneStatusAs,leapWorkRun, listener);
                 }
                 else
-                    resultsMap.put(UUID.randomUUID(),run);
+                    resultsMap.put(UUID.randomUUID(),leapWorkRun);
 
                 iter.remove();
 
@@ -134,45 +160,57 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
             }
 
             List<LeapworkRun> resultRuns = new ArrayList<>(resultsMap.values());
-            for (LeapworkRun run : resultRuns)
+            for (LeapworkRun leapworkRun : resultRuns)
             {
-                buildResult.leapworkRuns.add(run);
+                buildResult.leapworkRuns.add(leapworkRun);
 
-                buildResult.addFailedTests(run.getFailed());
-                buildResult.addPassedTests(run.getPassed());
-                buildResult.addErrors(run.getErrors());
-                run.setTotal(run.getPassed() + run.getFailed());
-                buildResult.addTotalTime(run.getTime());
+                buildResult.addFailedTests(leapworkRun.getFailed());
+                buildResult.addPassedTests(leapworkRun.getPassed());
+                buildResult.addErrors(leapworkRun.getErrors());
+                leapworkRun.setTotal(leapworkRun.getPassed() + leapworkRun.getFailed());
+                buildResult.addTotalTime(leapworkRun.getTime());
             }
             buildResult.setTotalTests(buildResult.getFailedTests() + buildResult.getPassedTests());
 
-            pluginHandler.createJUnitReport(junitReportPath,listener,buildResult);
+            pluginHandler.createJUnitReport(run,workspace,getLeapworkReport(),listener,buildResult);
 
-            if (buildResult.getErrors() > 0 || buildResult.getFailedTests() > 0 || invalidSchedules.size() > 0) {
-                listener.getLogger().println("FAILURE");
-                build.setResult(Result.FAILURE);
+            if (buildResult.getErrors() > 0 || invalidSchedules.size() > 0) {
+                listener.getLogger().println("There were detected 'ERRORS' or 'INVALID SCHEDULES' hence set the build status='FAILURE'");
+                run.setResult(Result.FAILURE);
+            } else if ( buildResult.getFailedTests() > 0 ) {
+                if ( "Success".equals(this.leapworkDoneStatusAs) ){
+                    listener.getLogger().println("There were test cases that had failures/issues, but the plugin has been configured to return: 'Success' in this case");
+                    run.setResult(Result.SUCCESS);
+                } else if ( "Unstable".equals(this.leapworkDoneStatusAs) ) {
+                    listener.getLogger().println("There were test cases that had failures/issues, but the plugin has been configured to return: 'Unstable' in this case");
+                    run.setResult(Result.UNSTABLE);
+                }
+            } else {
+                listener.getLogger().println("No issues detected");
             }
-            else {
-                listener.getLogger().println("SUCCESS");
-                build.setResult(Result.SUCCESS);
-            }
-
             listener.getLogger().println(Messages.PLUGIN_SUCCESSFUL_FINISH);
 
         }
-        catch (AbortException | InterruptedException e)
+        catch (AbortException e)
         {
-            listener.error("ABORTED");
-            build.setResult(Result.ABORTED);
-            listener.error(Messages.PLUGIN_ERROR_FINISH);
+            String exceptionMessage = String.format("ABORTED: ", e.getMessage());
+            listener.error(exceptionMessage);
+            // FIXME: pluginHandler.stopSchedule(getAddress(),schId,schTitle, listener);
+        }
+        catch (InterruptedException e)
+        {
+            String exceptionMessage = String.format(Messages.INTERRUPTED_EXCEPTION, e.getMessage());
+            // FIXME:  pluginHandler.stopSchedule(getAddress(),schId,schTitle, listener);
+            throw new AbortException(exceptionMessage);
         }
         catch (Exception e)
         {
+            String exceptionMessage = String.format(Messages.EXCEPTION, e.getMessage());
             listener.error(Messages.PLUGIN_ERROR_FINISH);
             listener.error(e.getMessage());
             listener.error(Messages.PLEASE_CONTACT_SUPPORT);
             listener.error("FAILURE");
-            build.setResult(Result.FAILURE);
+            throw new AbortException(exceptionMessage);
         }
 
 
@@ -298,18 +336,41 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
     @Extension // This indicates to Jenkins that this is an implementation of an extension point.
     public static final class DescriptorImpl extends BuildStepDescriptor<Builder> {
 
+        public static final String DEFAULT_DELAY = "3";
+        public static final String DEFAULT_REPORTNAME = "report.xml";
         public DescriptorImpl() { load();}
 
-        public ListBoxModel doFillSelectionStatus(@QueryParameter String status) {
-            return new ListBoxModel(new ListBoxModel.Option("Success", "Success", status.matches("Success") ),
-                    new ListBoxModel.Option("Success", "Success", status.matches("Success") ),
-                    new ListBoxModel.Option("Failed", "Failed", status.matches("Failed") ));
+        public ListBoxModel doFillLeapworkDoneStatusAsItems() {
+            return new ListBoxModel(
+                    new ListBoxModel.Option("Success", "Success" ),
+                    new ListBoxModel.Option("Unstable", "Unstable" ),
+                    new ListBoxModel.Option("Failed", "Failed" )
+            );
         }
 
         public boolean isApplicable(Class<? extends AbstractProject> aClass) {
             // Indicates that this builder can be used with all kinds of project types 
             return true;
         }
+
+        public FormValidation doCheckLeapworkDelay (@QueryParameter String delay){
+            int temp;
+            try {
+                temp = Integer.parseInt(delay);
+                if ( temp < 1 ){
+                    return FormValidation.error("Entered number must be higher than 0");
+                }
+
+            } catch (NumberFormatException ex){
+                return FormValidation.error("Invalid number");
+            }
+            return FormValidation.ok();
+
+        }
+
+        public String getDefaultLeapworkDelay() { return DEFAULT_DELAY; }
+
+        public String getDefaultLeapworkReportname() { return DEFAULT_REPORTNAME; }
 
         public String getDisplayName() {
             return Messages.PLUGIN_NAME;

@@ -10,7 +10,12 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.ning.http.client.AsyncHttpClient;
 import com.ning.http.client.Response;
+import hudson.FilePath;
+import hudson.model.Run;
+import hudson.FilePath;
 import hudson.model.TaskListener;
+import hudson.remoting.VirtualChannel;
+import hudson.remoting.VirtualChannel;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
@@ -21,6 +26,7 @@ import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
+import static java.nio.charset.StandardCharsets.*;
 
 public final class PluginHandler {
 
@@ -35,19 +41,6 @@ public final class PluginHandler {
         return pluginHandler;
     }
 
-    public String getJunitReportFilePath(String jenkinsWorkspacePath, String reportFileName)
-    {
-        if(reportFileName.isEmpty() || "".equals(reportFileName))
-        {
-            reportFileName = "report.xml";
-        }
-
-        if(!reportFileName.contains(".xml"))
-        {
-            reportFileName +=".xml";
-        }
-        return String.format("%1$s/%2$s",jenkinsWorkspacePath,reportFileName);
-    }
     public ArrayList<String> getRawScheduleList(String rawScheduleIds, String rawScheduleTitles)
     {
         ArrayList<String> rawScheduleList = new ArrayList<>();
@@ -62,25 +55,6 @@ public final class PluginHandler {
         return rawScheduleList;
     }
 
-    public int getTimeDelay(String rawTimeDelay, TaskListener listener)
-    {
-        int defaultTimeDelay = 5;
-        try
-        {
-            if(!rawTimeDelay.isEmpty() || !"".equals(rawTimeDelay))
-                return Integer.parseInt(rawTimeDelay);
-            else
-            {
-                listener.getLogger().println(String.format(Messages.TIME_DELAY_NUMBER_IS_INVALID,defaultTimeDelay));
-                return defaultTimeDelay;
-            }
-        }
-        catch (Exception e)
-        {
-            listener.getLogger().println(String.format(Messages.TIME_DELAY_NUMBER_IS_INVALID,defaultTimeDelay));
-            return defaultTimeDelay;
-        }
-    }
     public String getControllerApiHttpAdderess(String hostname, String rawPort, TaskListener listener)
     {
         StringBuilder stringBuilder = new StringBuilder();
@@ -416,31 +390,26 @@ public final class PluginHandler {
 
     }
 
-    public void createJUnitReport(String JUnitReportFilePath,final TaskListener listener, RunCollection buildResult) throws Exception {
+    public void createJUnitReport(Run<?,?> run, FilePath workspace, String JUnitReportFile, final TaskListener listener, RunCollection buildResult) throws Exception {
         try
         {
-            File reportFile = new File(JUnitReportFilePath);
-            if(!reportFile.exists()) reportFile.createNewFile();
+            FilePath reportFile;
+            VirtualChannel channel = workspace.getChannel();
+            reportFile = new FilePath(channel, workspace.toURI().getPath() + "/" + JUnitReportFile);
 
-            try(StringWriter writer = new StringWriter())
-            {
-                JAXBContext context = JAXBContext.newInstance(RunCollection.class);
+            StringWriter writer = new StringWriter();
+            JAXBContext context = JAXBContext.newInstance(RunCollection.class);
 
-                Marshaller m = context.createMarshaller();
-                m.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
-                //m.setProperty(Marshaller.JAXB_ENCODING,"Unicode");
-                m.marshal(buildResult, writer);
+            Marshaller m = context.createMarshaller();
+            m.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
+            m.marshal(buildResult, writer);
 
-                try(StringWriter formattedWriter  =  new StringWriter())
-                {
-                    formattedWriter.append(writer.getBuffer().toString().replace("&amp;#xA;","&#xA;"));
-                    try (PrintStream out = new PrintStream(new FileOutputStream(reportFile.getAbsolutePath()))) {
-                        out.print(formattedWriter);
-                        out.close();
-                    }
-                }
-
+            try(StringWriter formattedWriter  =  new StringWriter()) {
+                formattedWriter.append(writer.getBuffer().toString().replace("&amp;#xA;", "&#xA;"));
+                reportFile.write(formattedWriter.toString(),"UTF-8");
             }
+
+
         }
         catch (FileNotFoundException e) {
             listener.error(Messages.REPORT_FILE_NOT_FOUND);
