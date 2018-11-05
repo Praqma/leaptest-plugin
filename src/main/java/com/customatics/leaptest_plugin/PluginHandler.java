@@ -148,11 +148,12 @@ public final class PluginHandler {
                                     {
                                         if(isEnabled)
                                         {
+                                            listener.getLogger().println(String.format(Messages.SCHEDULE_DETECTED, Title, rawSchedule));
                                             schedulesIdTitleHashMap.put(Id, Title);
-                                            System.out.println(String.format(Messages.SCHEDULE_DETECTED, Title, rawSchedule));
                                         }
                                         else
                                         {
+                                            listener.getLogger().println(String.format(Messages.SCHEDULE_DISABLED,rawSchedule, Id));
                                             invalidSchedules.add(new InvalidSchedule(rawSchedule, String.format(Messages.SCHEDULE_DISABLED,Title,Id)));
                                         }
                                     }
@@ -166,11 +167,12 @@ public final class PluginHandler {
                                     {
                                         if(isEnabled)
                                         {
+                                            listener.getLogger().println(String.format(Messages.SCHEDULE_DETECTED,rawSchedule, Id));
                                             schedulesIdTitleHashMap.put(Id, rawSchedule);
-                                            System.out.println(String.format(Messages.SCHEDULE_DETECTED,rawSchedule, Id));
                                         }
                                         else
                                         {
+                                            listener.getLogger().println(String.format(Messages.SCHEDULE_DISABLED,rawSchedule, Id));
                                             invalidSchedules.add(new InvalidSchedule(rawSchedule, String.format(Messages.SCHEDULE_DISABLED,Title,Id)));
                                         }
                                     }
@@ -181,6 +183,9 @@ public final class PluginHandler {
 
                             if (!successfullyMapped)
                                 invalidSchedules.add(new InvalidSchedule(rawSchedule, Messages.NO_SUCH_SCHEDULE));
+                        }
+                        if ( invalidSchedules.size() > 0){
+
                         }
                         break;
 

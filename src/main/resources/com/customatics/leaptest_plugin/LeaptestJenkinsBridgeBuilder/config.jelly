@@ -131,7 +131,7 @@ this.executed = true;
     head.appendChild(style);
 
     var schtextarea = document.getElementById("schIds");
-    schtextarea.style.display = 'none';
+    //schtextarea.style.display = 'none';
 };
 </script>
 
