@@ -54,10 +54,15 @@ function GetSch() {
                                                 chbx.name = schName[i];
                                                 chbx.id = i;
                                                 chbx.value = schId[i];
-                                                if (json[i].IsEnabled != true)
-                                                    chbx.disabled = true;
                                                 schli.appendChild(chbx);
-                                                schli.innerHTML+=schName[i];
+                                                if (json[i].IsEnabled != true){
+                                                    schli.appendChild(chbx);
+                                                    schli.innerHTML+=schName[i].strike().italics().fontcolor("gray");
+                                                    schli.innerHTML+=' [disabled]'
+                                                } else {
+                                                    schli.appendChild(chbx);
+                                                    schli.innerHTML+=schName[i];
+                                                }
                                                 schul.appendChild(schli);
 
 
