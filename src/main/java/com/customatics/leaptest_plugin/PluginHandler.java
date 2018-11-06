@@ -155,11 +155,9 @@ public final class PluginHandler {
                                 }
                             }
 
-                            if (!successfullyMapped)
+                            if (!successfullyMapped) {
                                 invalidSchedules.add(new InvalidSchedule(rawSchedule, Messages.NO_SUCH_SCHEDULE));
-                        }
-                        if ( invalidSchedules.size() > 0){
-
+                            }
                         }
                         break;
 
@@ -615,7 +613,13 @@ public final class PluginHandler {
                             fullKeyframes.append("Schedule: ").append(scheduleTitle);
                             listener.getLogger().println("Schedule: " + scheduleTitle);
 
-                            runItem = new RunItem(flowTitle, flowStatus, milliseconds, fullKeyframes.toString(), scheduleTitle);
+                            if ( "Passed".equals(flowStatus) ) {
+                                // FIXME: Jenkins JUnit plugin interpret a case as failure if <failure message='stack-trace'/> element is present in
+                                // <test-test> element. It might be good if JUnit could accept the std-out for tracablility even the case is "Passed"
+                                runItem = new RunItem(flowTitle, flowStatus, milliseconds, scheduleTitle);
+                            } else {
+                                runItem = new RunItem(flowTitle, flowStatus, milliseconds, fullKeyframes.toString(), scheduleTitle);
+                            }
                         }
                     }
                     else

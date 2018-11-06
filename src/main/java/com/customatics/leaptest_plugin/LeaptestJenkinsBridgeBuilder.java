@@ -41,22 +41,19 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
      * @param leapworkHostname
      * @param leapworkPort
      * @param leapworkAccessKey
-     * @param leapworkDelay
-     * @param leapworkDoneStatusAs
-     * @param leapworkReport
      * @param leapworkSchNames
      * @param leapworkSchIds
      */
     // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
-    public LeaptestJenkinsBridgeBuilder(String leapworkHostname,String leapworkPort, String leapworkAccessKey, String leapworkDelay, String leapworkDoneStatusAs, String leapworkReport, String leapworkSchNames, String leapworkSchIds )
+    public LeaptestJenkinsBridgeBuilder(String leapworkHostname,String leapworkPort, String leapworkAccessKey, String leapworkSchNames, String leapworkSchIds )
     {
 
         this.leapworkHostname = leapworkHostname;
         this.leapworkPort = leapworkPort;
         this.leapworkAccessKey = leapworkAccessKey;
         this.leapworkDelay = DescriptorImpl.DEFAULT_DELAY;
-        this.leapworkDoneStatusAs = "Success";
+        this.leapworkDoneStatusAs = DescriptorImpl.DEFAULT_DONE_STATUS;
         this.leapworkReport = DescriptorImpl.DEFAULT_REPORTNAME;
         this.leapworkSchIds = leapworkSchIds;
         this.leapworkSchNames = leapworkSchNames;
@@ -191,26 +188,19 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
             listener.getLogger().println(Messages.PLUGIN_SUCCESSFUL_FINISH);
 
         }
-        catch (AbortException e)
+        catch (AbortException | InterruptedException e)
         {
-            String exceptionMessage = String.format("ABORTED: ", e.getMessage());
-            listener.error(exceptionMessage);
-            // FIXME: pluginHandler.stopSchedule(getAddress(),schId,schTitle, listener);
-        }
-        catch (InterruptedException e)
-        {
-            String exceptionMessage = String.format(Messages.INTERRUPTED_EXCEPTION, e.getMessage());
-            // FIXME:  pluginHandler.stopSchedule(getAddress(),schId,schTitle, listener);
-            throw new AbortException(exceptionMessage);
+            listener.error("ABORTED");
+            run.setResult(Result.ABORTED);
+            listener.error(Messages.PLUGIN_ERROR_FINISH);
         }
         catch (Exception e)
         {
-            String exceptionMessage = String.format(Messages.EXCEPTION, e.getMessage());
             listener.error(Messages.PLUGIN_ERROR_FINISH);
             listener.error(e.getMessage());
             listener.error(Messages.PLEASE_CONTACT_SUPPORT);
             listener.error("FAILURE");
-            throw new AbortException(exceptionMessage);
+            run.setResult(Result.FAILURE);
         }
 
 
@@ -338,6 +328,8 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
 
         public static final String DEFAULT_DELAY = "3";
         public static final String DEFAULT_REPORTNAME = "report.xml";
+        public static final String DEFAULT_DONE_STATUS = "Success";
+
         public DescriptorImpl() { load();}
 
         public ListBoxModel doFillLeapworkDoneStatusAsItems() {
@@ -353,10 +345,10 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
             return true;
         }
 
-        public FormValidation doCheckLeapworkDelay (@QueryParameter String delay){
+        public FormValidation doCheckLeapworkDelay (@QueryParameter String leapworkDelay){
             int temp;
             try {
-                temp = Integer.parseInt(delay);
+                temp = Integer.parseInt(leapworkDelay);
                 if ( temp < 1 ){
                     return FormValidation.error("Entered number must be higher than 0");
                 }
@@ -368,9 +360,13 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
 
         }
 
-        public String getDefaultLeapworkDelay() { return DEFAULT_DELAY; }
+        public String getDefaultLeapworkDelay() {
+            return DEFAULT_DELAY;
+        }
 
-        public String getDefaultLeapworkReportname() { return DEFAULT_REPORTNAME; }
+        public String getDefaultLeapworkReportname() {
+            return DEFAULT_REPORTNAME;
+        }
 
         public String getDisplayName() {
             return Messages.PLUGIN_NAME;
