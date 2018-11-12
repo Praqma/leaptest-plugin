@@ -215,6 +215,57 @@ public final class PluginHandler {
         return schedulesIdTitleHashMap;
     }
 
+
+    public String getScheduleIdStatus(AsyncHttpClient client, String controllerApiHttpAddress, String accessKey, UUID scheduleId) throws Exception {
+
+        String uri = String.format(Messages.STATUS_SCHEDULE_URI, controllerApiHttpAddress, scheduleId.toString());
+
+        try
+        {
+            Response response = client.prepareGet(uri).setHeader("AccessKey",accessKey).execute().get();
+
+            switch (response.getStatusCode())
+            {
+                case 200:
+                    JsonParser parser = new JsonParser();
+                    JsonObject scheduleStatusObject = parser.parse(response.getResponseBody()).getAsJsonObject();
+                    JsonElement jsonScheduleStatus = scheduleStatusObject.get("Status");
+                    String scheduleStatus = Utils.defaultStringIfNull(jsonScheduleStatus, "Queued");
+                    return scheduleStatus;
+
+                case 401:
+                    String errorMessage401 = String.format(Messages.ERROR_CODE_MESSAGE, response.getStatusCode(), response.getStatusText());
+                    errorMessage401 += String.format("\n%1$s", Messages.INVALID_ACCESS_KEY);
+                    throw new Exception(errorMessage401);
+
+                case 404:
+                    String errorMessage404 = String.format(Messages.ERROR_CODE_MESSAGE, response.getStatusCode(), response.getStatusText());
+                    errorMessage404 += String.format("\n%1$s", String.format(Messages.NO_SUCH_RUN, scheduleId));
+                    throw new Exception(errorMessage404);
+
+                case 455:
+                    String errorMessage455 = String.format(Messages.ERROR_CODE_MESSAGE, response.getStatusCode(), response.getStatusText());
+                    errorMessage455 += String.format("\n%1$s", Messages.DATABASE_NOT_RESPONDING);
+                    throw new Exception(errorMessage455);
+
+                case 500:
+                    String errorMessage500 = String.format(Messages.ERROR_CODE_MESSAGE, response.getStatusCode(), response.getStatusText());
+                    errorMessage500 += String.format("\n%1$s", Messages.CONTROLLER_RESPONDED_WITH_ERRORS);
+                    throw new Exception(errorMessage500);
+
+                default:
+                    String errorMessage = String.format(Messages.ERROR_CODE_MESSAGE, response.getStatusCode(), response.getStatusText());
+                    throw new Exception(errorMessage);
+
+            }
+        }
+        catch (Exception e)
+        {
+            throw e;
+        }
+    }
+
+
     public UUID runSchedule(
             AsyncHttpClient client,
             String controllerApiHttpAddress,

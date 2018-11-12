@@ -30,6 +30,7 @@ public final class Messages {
 
     public static final String GET_ALL_AVAILABLE_SCHEDULES_URI = "%1$s/api/v3/schedules";
     public static final String RUN_SCHEDULE_URI = "%1$s/api/v3/schedules/%2$s/runNow";
+    public static final String STATUS_SCHEDULE_URI = "%1$s/api/v3/schedules/%2$s/status";
     public static final String STOP_RUN_URI = "%1$s/api/v3/run/%2$s/stop";
     public static final String STOP_SCHEDULE_URI = "%1$s/api/v3/schedules/%2$s/stop";
     public static final String GET_RUN_STATUS_URI = "%1$s/api/v3/run/%2$s/status";

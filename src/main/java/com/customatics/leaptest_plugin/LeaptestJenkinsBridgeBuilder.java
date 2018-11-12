@@ -121,6 +121,21 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
 
                 UUID schId = iter.next();
                 String schTitle = schedulesIdTitleHashMap.get(schId);
+
+                // FIXME: ask status for schedule before running it
+                // LeapWork of the new version does not have a queue for each schedule - only for environments
+                boolean scheduleCanRun = false;
+                while ( !scheduleCanRun ){
+                    String scheduleStatus = pluginHandler.getScheduleIdStatus(mainClient,controllerApiHttpAddress,leapworkAccessKey,schId);
+                    if ( "Finished".equals(scheduleStatus) ){
+                        scheduleCanRun = true;
+                    } else {
+                        listener.getLogger().println(String.format("The schedule status is already '%1$s' - Cannot start, try again in 1 min", scheduleStatus));
+                        //get statuses
+                        Thread.sleep(60000);
+                    }
+                }
+
                 LeapworkRun leapWorkRun  = new LeapworkRun(schTitle);
 
                 UUID runId = pluginHandler.runSchedule(mainClient,controllerApiHttpAddress, leapworkAccessKey, schId, schTitle, listener,  leapWorkRun);
