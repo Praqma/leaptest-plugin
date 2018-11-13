@@ -148,8 +148,8 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
                             listener.getLogger().println(String.format("RunId: '%1$s' is ready to monitor", runId ));
                             runIdReady = true;
                         } else {
-                            listener.getLogger().println(String.format("RunId: '%1$s' is not ready yet - wait a sec", runId ));
-                            Thread.sleep(1000);
+                            listener.getLogger().println(String.format("RunId: '%1$s' is not ready yet - wait a minute", runId ));
+                            Thread.sleep(60000);
                         }
                     }
                     CollectScheduleRunResults(controllerApiHttpAddress, leapworkAccessKey,runId,schTitle,timeDelay,leapworkDoneStatusAs,leapWorkRun, listener);
