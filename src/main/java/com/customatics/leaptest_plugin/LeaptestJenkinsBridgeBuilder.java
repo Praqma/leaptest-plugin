@@ -128,10 +128,10 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
                 while ( !scheduleCanRun ){
                     String scheduleStatus = pluginHandler.getScheduleIdStatus(mainClient,controllerApiHttpAddress,leapworkAccessKey,schId);
                     if ( "Finished".equals(scheduleStatus) ){
+                        listener.getLogger().println(String.format("The schedule is ready to run as the state is: '%1$s' - let's go", scheduleStatus));
                         scheduleCanRun = true;
                     } else {
-                        listener.getLogger().println(String.format("The schedule status is already '%1$s' - Cannot start, try again in 1 min", scheduleStatus));
-                        //get statuses
+                        listener.getLogger().println(String.format("The schedule status is already '%1$s' - wait a minute...", scheduleStatus));
                         Thread.sleep(60000);
                     }
                 }
@@ -142,6 +142,16 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
                 if(runId != null)
                 {
                     resultsMap.put(runId,leapWorkRun);
+                    boolean runIdReady = false;
+                    while ( !runIdReady ){
+                        if ( pluginHandler.scheduleRunIdFound(mainClient,controllerApiHttpAddress,leapworkAccessKey,schId,runId)) {
+                            listener.getLogger().println(String.format("RunId: '%1$s' is ready to monitor", runId ));
+                            runIdReady = true;
+                        } else {
+                            listener.getLogger().println(String.format("RunId: '%1$s' is not ready yet - wait a sec", runId ));
+                            Thread.sleep(1000);
+                        }
+                    }
                     CollectScheduleRunResults(controllerApiHttpAddress, leapworkAccessKey,runId,schTitle,timeDelay,leapworkDoneStatusAs,leapWorkRun, listener);
                 }
                 else

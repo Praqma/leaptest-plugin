@@ -265,6 +265,78 @@ public final class PluginHandler {
         }
     }
 
+    public boolean scheduleRunIdFound(AsyncHttpClient client, String controllerApiHttpAddress, String accessKey, UUID schId, UUID runId) throws Exception {
+        List<UUID> scheduleRunIds = getScheduleRunIds(client, controllerApiHttpAddress, accessKey, schId);
+        return scheduleRunIds.contains(runId);
+    }
+
+
+    public List<UUID> getScheduleRunIds(AsyncHttpClient client, String controllerApiHttpAddress, String accessKey, UUID schId) throws Exception {
+        String uri = String.format(Messages.RUNIDS_SCHEDULE_URI, controllerApiHttpAddress, schId.toString());
+
+        try
+        {
+            Response response = client.prepareGet(uri).setHeader("AccessKey",accessKey).execute().get();
+
+            switch (response.getStatusCode())
+            {
+                case 200:
+
+                    JsonParser parser = new JsonParser();
+                    JsonObject jsonRunItemsObject = parser.parse(response.getResponseBody()).getAsJsonObject();
+                    JsonElement jsonRunItemsElement = jsonRunItemsObject.get("RunIds");
+
+                    List<UUID> runIds = new ArrayList<>();
+
+                    if(jsonRunItemsElement != null)
+                    {
+                        JsonArray jsonRunItems = jsonRunItemsElement.getAsJsonArray();
+                        for(int i = 0; i < jsonRunItems.size(); i++)
+                        {
+                            UUID runId = UUID.fromString(jsonRunItems.get(i).getAsString());
+                            runIds.add(runId);
+                        }
+                    }
+
+                    return runIds;
+
+                case 401:
+                    String errorMessage401 = String.format(Messages.ERROR_CODE_MESSAGE, response.getStatusCode(), response.getStatusText());
+                    errorMessage401 += String.format("\n%1$s", Messages.INVALID_ACCESS_KEY);
+                    throw new Exception(errorMessage401);
+
+                case 404:
+                    String errorMessage404 = String.format(Messages.ERROR_CODE_MESSAGE, response.getStatusCode(), response.getStatusText());
+                    errorMessage404 += String.format("\n%1$s", String.format(Messages.NO_SUCH_RUN, schId));
+                    throw new Exception(errorMessage404);
+
+                case 446:
+                    String errorMessage446 = String.format(Messages.ERROR_CODE_MESSAGE, response.getStatusCode(), response.getStatusText());
+                    errorMessage446 += String.format("\n%1$s", Messages.NO_DISK_SPACE);
+                    throw new Exception(errorMessage446);
+
+                case 455:
+                    String errorMessage455 = String.format(Messages.ERROR_CODE_MESSAGE, response.getStatusCode(), response.getStatusText());
+                    errorMessage455 += String.format("\n%1$s", Messages.DATABASE_NOT_RESPONDING);
+                    throw new Exception(errorMessage455);
+
+                case 500:
+                    String errorMessage500 = String.format(Messages.ERROR_CODE_MESSAGE, response.getStatusCode(), response.getStatusText());
+                    errorMessage500 += String.format("\n%1$s", Messages.CONTROLLER_RESPONDED_WITH_ERRORS);
+                    throw new Exception(errorMessage500);
+
+                default:
+                    String errorMessage = String.format(Messages.ERROR_CODE_MESSAGE, response.getStatusCode(), response.getStatusText());
+                    throw new Exception(errorMessage);
+
+            }
+        }
+        catch (Exception e)
+        {
+            throw e;
+        }
+    }
+
 
     public UUID runSchedule(
             AsyncHttpClient client,
