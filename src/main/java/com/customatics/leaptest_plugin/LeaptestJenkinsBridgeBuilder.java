@@ -11,6 +11,7 @@ import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.Builder;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
+import jenkins.model.Jenkins;
 import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONObject;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -92,7 +93,18 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
         ArrayList<InvalidSchedule> invalidSchedules = new ArrayList<>();
         ArrayList<String> rawScheduleList = null;
 
-        listener.getLogger().println(getLeapworkReport());
+        listener.getLogger().println("");
+        listener.getLogger().println("LeapWork Plugin configuration:");
+        listener.getLogger().println("---------------------------------------------------------");
+
+        listener.getLogger().println("LeapWork controller:         " + getLeapworkHostname());
+        listener.getLogger().println("LeapWork port:               " + getLeapworkPort());
+        listener.getLogger().println("Report filename:             " + getLeapworkReport());
+        listener.getLogger().println("Schedule names:              " + getLeapworkSchNames());
+        listener.getLogger().println("Schedule ID's:               " + getLeapworkSchIds());
+        listener.getLogger().println("Delay between status checks: " + getLeapworkDelay());
+        listener.getLogger().println("DoneStatusAs:                " + getLeapworkDoneStatusAs());
+        listener.getLogger().println("");
 
 
         rawScheduleList = pluginHandler.getRawScheduleList(leapworkSchIds, leapworkSchNames);
@@ -109,7 +121,18 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
 
             if(schedulesIdTitleHashMap.isEmpty())
             {
+                listener.getLogger().println(String.format("ERROR: No or invalid schedule id's detected.."));
+                listener.getLogger().println(String.format(""));
                 throw new Exception(Messages.NO_SCHEDULES);
+            }
+            if (invalidSchedules.size() > 0)
+            {
+                listener.getLogger().println(String.format("ERROR: No or invalid schedule titles detected.."));
+                for (InvalidSchedule invalidSchedule : invalidSchedules) {
+                    listener.getLogger().println(String.format("%1$s: %2$s",invalidSchedule.getName(),invalidSchedule.getStackTrace()));
+                }
+                listener.getLogger().println(String.format(""));
+                throw new Exception(Messages.INVALID_SCHEDULES);
             }
 
             List<UUID> schIdsList = new ArrayList<>(schedulesIdTitleHashMap.keySet());
@@ -165,22 +188,9 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
             schedulesIdTitleHashMap.clear();
             RunCollection buildResult = new RunCollection();
 
-            if (invalidSchedules.size() > 0)
-            {
-                listener.getLogger().println(Messages.INVALID_SCHEDULES);
-
-                for (InvalidSchedule invalidSchedule : invalidSchedules)
-                {
-                    listener.getLogger().println(String.format("%1$s: %2$s",invalidSchedule.getName(),invalidSchedule.getStackTrace()));
-                    LeapworkRun notFoundSchedule = new LeapworkRun(invalidSchedule.getName());
-                    RunItem invalidRunItem = new RunItem("Error","Error",0,invalidSchedule.getStackTrace(),invalidSchedule.getName());
-                    notFoundSchedule.runItems.add(invalidRunItem);
-                    notFoundSchedule.setError(invalidSchedule.getStackTrace());
-                    buildResult.leapworkRuns.add(notFoundSchedule);
-                }
-
-            }
-
+            listener.getLogger().println("##################################");
+            listener.getLogger().println("LeapWork summary: ");
+            listener.getLogger().println("##################################");
             List<LeapworkRun> resultRuns = new ArrayList<>(resultsMap.values());
             for (LeapworkRun leapworkRun : resultRuns)
             {
@@ -191,15 +201,31 @@ public class LeaptestJenkinsBridgeBuilder extends Builder  implements SimpleBuil
                 buildResult.addErrors(leapworkRun.getErrors());
                 leapworkRun.setTotal(leapworkRun.getPassed() + leapworkRun.getFailed());
                 buildResult.addTotalTime(leapworkRun.getTime());
+                listener.getLogger().println("" + leapworkRun.getScheduleTitle());
+                listener.getLogger().println("Passed testcases: " + leapworkRun.getPassed() );
+                listener.getLogger().println("Failed testcases: " + leapworkRun.getFailed() );
+                listener.getLogger().println("Error testcases: " + leapworkRun.getErrors() );
+                listener.getLogger().println("");
+
             }
             buildResult.setTotalTests(buildResult.getFailedTests() + buildResult.getPassedTests());
 
+            listener.getLogger().println("|---------------------------------------------------------------");
+            listener.getLogger().println("| Total passed testcases: " + buildResult.getPassedTests() );
+            listener.getLogger().println("| Total failed testcases: " + buildResult.getFailedTests() );
+            listener.getLogger().println("| Total error testcases: " + buildResult.getErrors() );
+            listener.getLogger().println("|---------------------------------------------------------------");
+            listener.getLogger().println("");
+
+
             pluginHandler.createJUnitReport(run,workspace,getLeapworkReport(),listener,buildResult);
 
-            if (buildResult.getErrors() > 0 || invalidSchedules.size() > 0) {
-                listener.getLogger().println("There were detected 'ERRORS' or 'INVALID SCHEDULES' hence set the build status='FAILURE'");
+            if (buildResult.getErrors() > 0 ) {
+                listener.getLogger().println("[ERROR] There were detected case(s) with status 'Error', 'Inconclusive', 'Timeout' or 'Cancelled'. Please check the report or console output for details. Set the build status to FAILURE as the results of the cases are not deterministic..");
                 run.setResult(Result.FAILURE);
-            } else if ( buildResult.getFailedTests() > 0 ) {
+                listener.getLogger().println("");
+            }
+            if ( buildResult.getFailedTests() > 0 ) {
                 if ( "Success".equals(this.leapworkDoneStatusAs) ){
                     listener.getLogger().println("There were test cases that had failures/issues, but the plugin has been configured to return: 'Success' in this case");
                     run.setResult(Result.SUCCESS);
